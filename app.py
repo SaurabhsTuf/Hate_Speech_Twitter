@@ -1,11 +1,16 @@
 # Install required packages
-!pip install transformers streamlit torch pandas
+
 
 # Import required libraries
 import streamlit as st
 import pandas as pd
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
+from huggingface_hub import login # Import login for authentication
+
+# Authenticate with Hugging Face using your token
+# Get your token from https://huggingface.co/settings/tokens
+login(token="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") # Replace with your actual token
 
 # Load the model and tokenizer from Hugging Face
 tokenizer = AutoTokenizer.from_pretrained("unhcr/hatespeech-detection")
