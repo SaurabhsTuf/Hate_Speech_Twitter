@@ -1,87 +1,91 @@
-# streamlit_app.py
-
+# Import required libraries
 import streamlit as st
 import pandas as pd
-import numpy as np
-import re
-import string
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import make_pipeline
-import nltk
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+from huggingface_hub import login
+import os
 
-# Load nltk data
-nltk.download('stopwords')
-stopwords = set(stopwords.words('english'))
-stemmer = PorterStemmer()
+# Authenticate with Hugging Face using your token
+login(token="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")  # Replace with your actual token
 
-# Load the dataset
-url = "https://raw.githubusercontent.com/SaurabhsTuf/Hate_Speech_Twitter/refs/heads/master/twitter.csv"
-try:
-    data = pd.read_csv(url)
-except Exception as e:
-    st.error(f"Error reading the CSV file: {e}")
+# Load the model and tokenizer from Hugging Face
+tokenizer = AutoTokenizer.from_pretrained("unhcr/hatespeech-detection")
+model = AutoModelForSequenceClassification.from_pretrained("unhcr/hatespeech-detection")
 
-data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
-data = data[["tweet", "labels"]]
+# Load or create feedback data CSV
+feedback_file = "feedback_data.csv"
+if os.path.exists(feedback_file):
+    feedback_df = pd.read_csv(feedback_file)
+else:
+    feedback_df = pd.DataFrame(columns=["text", "label"])
 
-# Preprocessing function
-def clean(text):
-    text = str(text).lower()
-    text = re.sub(r'\[.*?\]', '', text)
-    text = re.sub(r'https?://\S+|www\.\S+', '', text)
-    text = re.sub(r'<.*?>+', '', text)
-    text = re.sub(f'[{re.escape(string.punctuation)}]', '', text)
-    text = re.sub(r'\n', '', text)
-    text = re.sub(r'\w*\d\w*', '', text)
-    text = ' '.join([word for word in text.split() if word not in stopwords])
-    text = ' '.join([stemmer.stem(word) for word in text.split()])
-    return text
+# Function to censor offensive or hate speech words by replacing with asterisks
+def censor_text(text):
+    inputs = tokenizer(text, return_tensors="pt", truncation=True)
+    
+    # Perform inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        predicted_class = torch.argmax(predictions, dim=-1).item()
+    
+    # If hate speech or offensive language is detected, censor the text
+    if predicted_class in [0, 1]:  # 0: Hate Speech, 1: Offensive Language
+        censored_text = " ".join(['*' * len(word) if word.lower() in text.lower() else word for word in text.split()])
+        return censored_text, predicted_class
+    else:
+        return text, predicted_class
 
-# Apply preprocessing to the 'tweet' column
-data["tweet"] = data["tweet"].apply(clean)
+# Check feedback data for previously corrected entries
+def check_feedback(text):
+    if not feedback_df.empty:
+        exact_matches = feedback_df[feedback_df["text"] == text]
+        if not exact_matches.empty:
+            return exact_matches["label"].values[0]
+    return None
 
-# Feature extraction and model pipeline with TF-IDF and Random Forest
-pipeline = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=100, random_state=42))
-X = data["tweet"]
-y = data["labels"]
+# Streamlit interface
+st.title("Hate Speech Detection, Prevention, and Self-Training")
+st.write("Enter a tweet or message to classify and censor any detected hate speech or offensive language.")
 
-# Train the model
-pipeline.fit(X, y)
-
-# Streamlit UI
-st.title("Hate Speech Detection and Prevention")
-st.write("Enter a tweet or message to classify and censor any detected Hate Speech or Offensive Language.")
-
-# Input text box
+# Input text box for user input
 user_input = st.text_area("Enter your text here")
 
-if st.button("Predict and Censor"):
+# Classify and censor text when the button is pressed
+if st.button("Classify and Censor"):
     if user_input:
-        # Preprocess the input text
-        cleaned_text = clean(user_input)
+        # Check if there is user feedback for this input
+        feedback_label = check_feedback(user_input)
         
-        # Prediction
-        prediction = pipeline.predict([cleaned_text])
-        prediction_proba = pipeline.predict_proba([cleaned_text])  # Get probabilities
-        
-        # Determine if the prediction confidence is high enough
-        confidence = np.max(prediction_proba)  # Get max probability
-        threshold = 0.6  # Set confidence threshold
-
-        if confidence >= threshold:
-            # Check if the text contains hate speech or offensive language
-            if prediction[0] in ["Hate Speech", "Offensive Language"]:
-                # Censor detected hate speech or offensive language
-                censored_text = re.sub(r'\b\w+\b', '****', user_input)
-                st.write("Warning: The content contains censored language.")
-                st.write("Censored Text:", censored_text)
-            else:
-                st.write("Prediction:", prediction[0])
-                st.write("Text is classified as normal.")
+        if feedback_label is not None:
+            label_mapping = {0: "Hate Speech", 1: "Offensive Language", 2: "Normal"}
+            prediction_label = label_mapping.get(feedback_label, "Unknown")
+            st.write("Prediction (based on feedback):", prediction_label)
         else:
-            st.write("Text is classified as normal.")
+            censored_text, prediction = censor_text(user_input)
+            
+            # Mapping the output to class labels
+            label_mapping = {0: "Hate Speech", 1: "Offensive Language", 2: "Normal"}
+            prediction_label = label_mapping.get(prediction, "Unknown")
+            
+            # Display the result and censored text if applicable
+            st.write("Prediction:", prediction_label)
+            st.write("Censored Text:", censored_text)
+        
+            # Ask for feedback
+            st.write("Is this prediction correct?")
+            if st.button("Yes"):
+                st.write("Thank you for your feedback!")
+            if st.button("No"):
+                correct_label = st.selectbox("Select the correct label:", ["Hate Speech", "Offensive Language", "Normal"])
+                if st.button("Submit Correction"):
+                    correct_label_idx = list(label_mapping.keys())[list(label_mapping.values()).index(correct_label)]
+                    
+                    # Update feedback data and save to CSV
+                    feedback_df.loc[len(feedback_df)] = [user_input, correct_label_idx]
+                    feedback_df.to_csv(feedback_file, index=False)
+                    st.write("Thank you for your feedback! The model has updated with this new data.")
+
     else:
-        st.write("Please enter text to classify.")
+        st.write("Please enter some text for classification.")
