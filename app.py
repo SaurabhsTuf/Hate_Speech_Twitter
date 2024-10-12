@@ -1,29 +1,40 @@
-import re
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# Install required packages
+!pip install transformers streamlit torch pandas
 
-# Load model and tokenizer
+# Import required libraries
+import streamlit as st
+import pandas as pd
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+
+# Load the model and tokenizer from Hugging Face
 tokenizer = AutoTokenizer.from_pretrained("unhcr/hatespeech-detection")
 model = AutoModelForSequenceClassification.from_pretrained("unhcr/hatespeech-detection")
 
-# Function to censor offensive language
-def censor_text(text):
-    # Tokenize the input text and get predictions
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-    outputs = model(**inputs)
-    
-    # Get the label with the highest score
-    scores = outputs.logits.softmax(dim=1)
-    label = torch.argmax(scores, dim=1).item()
-    
-    # If hate speech or offensive, censor the detected words
-    if label == 0 or label == 1:
-        # Censor all words in the text (you may refine this logic as needed)
-        censored_text = re.sub(r'\b\w+\b', '****', text)
-        return f"Content contains hate speech or offensive language:\n{censored_text}"
-    else:
-        return f"Text is classified as normal:\n{text}"
+# Streamlit interface for hate speech detection
+st.title("Hate Speech Detection and Prevention")
+st.write("Enter a tweet or message to classify hate speech and offensive language.")
 
-# Example usage
-text = "Your example text here with possible offensive language"
-print(censor_text(text))
+# Input text box for user input
+user_input = st.text_area("Enter your text here")
+
+# Classify text when button is pressed
+if st.button("Classify"):
+    if user_input:
+        # Tokenize and prepare input for the model
+        inputs = tokenizer(user_input, return_tensors="pt", truncation=True)
+        
+        # Perform inference
+        with torch.no_grad():
+            outputs = model(**inputs)
+            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            predicted_class = torch.argmax(predictions, dim=-1).item()
+
+        # Mapping the output to class labels
+        label_mapping = {0: "Hate Speech", 1: "Offensive Language", 2: "Normal"}
+        prediction_label = label_mapping.get(predicted_class, "Unknown")
+
+        # Display the result
+        st.write("Prediction:", prediction_label)
+    else:
+        st.write("Please enter some text for classification.")
