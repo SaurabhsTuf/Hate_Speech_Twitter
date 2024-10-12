@@ -82,6 +82,6 @@ if st.button("Predict and Censor"):
                 st.write("Prediction:", prediction[0])
                 st.write("Text is classified as normal.")
         else:
-            st.write("The model is not confident enough to classify this text.")
+            st.write("Text is classified as normal.")
     else:
         st.write("Please enter text to classify.")
