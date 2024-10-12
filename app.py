@@ -19,7 +19,7 @@ stopwords = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 
 # Load the dataset
-url = "https://raw.githubusercontent.com/username/repo/main/path/to/your_file.csv"
+url = "https://raw.githubusercontent.com/SaurabhsTuf/Hate_Speech_Twitter/refs/heads/master/twitter.csv"
 try:
     data = pd.read_csv(url)
 except Exception as e:
