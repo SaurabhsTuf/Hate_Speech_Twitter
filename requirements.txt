@@ -3,4 +3,5 @@ pandas
 numpy
 nltk
 scikit-learn
-transformers torch
+transformers 
+torch
