@@ -7,7 +7,7 @@ import string
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 import nltk
 
 # Load nltk data
@@ -18,7 +18,7 @@ stemmer = PorterStemmer()
 # Load the dataset with caching
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/SaurabhsTuf/Hate_Speech_Twitter/refs/heads/master/twitter.csv"
+    url = "https://raw.githubusercontent.com/username/repo/main/path/to/your_file.csv"
     data = pd.read_csv(url)
     data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
     return data[["tweet", "labels"]]
@@ -44,12 +44,12 @@ data["tweet"] = data["tweet"].apply(clean)
 # Feature extraction and model pipeline with caching
 @st.cache_resource
 def train_model():
-    vectorizer = TfidfVectorizer(max_features=5000)
+    vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2))
     X = vectorizer.fit_transform(data["tweet"])
     y = data["labels"]
     
-    # Using a simpler model
-    model = LogisticRegression(random_state=42)
+    # Use SVM with balanced class weights
+    model = SVC(class_weight='balanced', probability=True)
     model.fit(X, y)
     return model, vectorizer
 
