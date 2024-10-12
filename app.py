@@ -7,10 +7,9 @@ import re
 import string
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import make_pipeline
-from sklearn.metrics import accuracy_score
 import nltk
 
 # Load nltk data
@@ -31,23 +30,21 @@ data = data[["tweet", "labels"]]
 # Preprocessing function
 def clean(text):
     text = str(text).lower()
-    text = re.sub('\[.*?\]', '', text)
-    text = re.sub('https?://\S+|www\.\S+', '', text)
-    text = re.sub('<.*?>+', '', text)
-    text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
-    text = re.sub('\n', '', text)
-    text = re.sub('\w*\d\w*', '', text)
-    text = [word for word in text.split(' ') if word not in stopwords]
-    text = " ".join(text)
-    text = [stemmer.stem(word) for word in text.split(' ')]
-    text = " ".join(text)
+    text = re.sub(r'\[.*?\]', '', text)
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'<.*?>+', '', text)
+    text = re.sub(f'[{re.escape(string.punctuation)}]', '', text)
+    text = re.sub(r'\n', '', text)
+    text = re.sub(r'\w*\d\w*', '', text)
+    text = ' '.join([word for word in text.split() if word not in stopwords])
+    text = ' '.join([stemmer.stem(word) for word in text.split()])
     return text
 
 # Apply preprocessing to the 'tweet' column
 data["tweet"] = data["tweet"].apply(clean)
 
-# Feature extraction and model pipeline
-pipeline = make_pipeline(CountVectorizer(), DecisionTreeClassifier())
+# Feature extraction and model pipeline with TF-IDF and Random Forest
+pipeline = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=100, random_state=42))
 X = data["tweet"]
 y = data["labels"]
 
@@ -65,7 +62,6 @@ if st.button("Predict and Censor"):
     if user_input:
         # Preprocess the input text
         cleaned_text = clean(user_input)
-        transformed_text = pipeline.named_steps['countvectorizer'].transform([cleaned_text])
         
         # Prediction
         prediction = pipeline.predict([cleaned_text])
