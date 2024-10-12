@@ -17,7 +17,7 @@ stopwords_set = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 
 # Load the dataset from a remote URL (e.g., GitHub raw file link)
-url = "https://raw.githubusercontent.com/your-username/your-repo/main/twitter.csv"
+url = "https://github.com/SaurabhsTuf/Hate_Speech_Twitter/blob/master/twitter.csv"
 data = pd.read_csv(url)
 data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
 data = data[["tweet", "labels"]]
