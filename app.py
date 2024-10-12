@@ -13,11 +13,12 @@ import nltk
 
 # Load nltk data
 nltk.download('stopwords')
-stopwords = set(stopwords.words('english'))
+stopwords_set = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 
-# Load the dataset
-data = pd.read_csv(r'C:\Major_Project\MODEL\twitter.csv')
+# Load the dataset from a remote URL (e.g., GitHub raw file link)
+url = "https://raw.githubusercontent.com/your-username/your-repo/main/twitter.csv"
+data = pd.read_csv(url)
 data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
 data = data[["tweet", "labels"]]
 
@@ -30,7 +31,7 @@ def clean(text):
     text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
     text = re.sub('\n', '', text)
     text = re.sub('\w*\d\w*', '', text)
-    text = [word for word in text.split(' ') if word not in stopwords]
+    text = [word for word in text.split(' ') if word not in stopwords_set]
     text = " ".join(text)
     text = [stemmer.stem(word) for word in text.split(' ')]
     text = " ".join(text)
@@ -76,3 +77,4 @@ if st.button("Predict and Censor"):
             st.write("Text is classified as normal.")
     else:
         st.write("Please enter text to classify.")
+
