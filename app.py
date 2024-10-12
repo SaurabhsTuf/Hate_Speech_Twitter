@@ -18,7 +18,7 @@ stemmer = PorterStemmer()
 # Load the dataset with caching
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/username/repo/main/path/to/your_file.csv"
+    url = "https://raw.githubusercontent.com/SaurabhsTuf/Hate_Speech_Twitter/refs/heads/master/twitter.csv"
     data = pd.read_csv(url)
     data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
     return data[["tweet", "labels"]]
