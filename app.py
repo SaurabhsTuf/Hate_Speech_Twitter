@@ -2,13 +2,12 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import re
 import string
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.svm import SVC
 import nltk
 
 # Load nltk data
@@ -16,38 +15,45 @@ nltk.download('stopwords')
 stopwords = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 
-# Load the dataset
-data = pd.read_csv(r'C:\Major_Project\MODEL\twitter.csv')
-data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
-data = data[["tweet", "labels"]]
+# Load the dataset with caching
+@st.cache_data
+def load_data():
+    url = "https://raw.githubusercontent.com/username/repo/main/path/to/your_file.csv"
+    data = pd.read_csv(url)
+    data["labels"] = data["class"].map({0: "Hate Speech", 1: "Offensive Language", 2: "Normal"})
+    return data[["tweet", "labels"]]
+
+data = load_data()
 
 # Preprocessing function
 def clean(text):
     text = str(text).lower()
-    text = re.sub('\[.*?\]', '', text)
-    text = re.sub('https?://\S+|www\.\S+', '', text)
-    text = re.sub('<.*?>+', '', text)
-    text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
-    text = re.sub('\n', '', text)
-    text = re.sub('\w*\d\w*', '', text)
-    text = [word for word in text.split(' ') if word not in stopwords]
-    text = " ".join(text)
-    text = [stemmer.stem(word) for word in text.split(' ')]
-    text = " ".join(text)
-    text = re.sub(r'\b(fucker|motherfucker|bitch|asshole|shit)\b', '****', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[.*?\]', '', text)
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'<.*?>+', '', text)
+    text = re.sub(f'[{re.escape(string.punctuation)}]', '', text)
+    text = re.sub(r'\n', '', text)
+    text = re.sub(r'\w*\d\w*', '', text)
+    text = ' '.join([word for word in text.split() if word not in stopwords])
+    text = ' '.join([stemmer.stem(word) for word in text.split()])
     return text
 
 # Apply preprocessing to the 'tweet' column
 data["tweet"] = data["tweet"].apply(clean)
 
-# Feature extraction
-cv = CountVectorizer()
-X = cv.fit_transform(data["tweet"])
-y = data["labels"]
+# Feature extraction and model pipeline with caching
+@st.cache_resource
+def train_model():
+    vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2))
+    X = vectorizer.fit_transform(data["tweet"])
+    y = data["labels"]
+    
+    # Use SVM with balanced class weights
+    model = SVC(class_weight='balanced', probability=True)
+    model.fit(X, y)
+    return model, vectorizer
 
-# Model training
-clf = DecisionTreeClassifier()
-clf.fit(X, y)
+model, vectorizer = train_model()
 
 # Streamlit UI
 st.title("Hate Speech Detection and Prevention")
@@ -60,14 +66,12 @@ if st.button("Predict and Censor"):
     if user_input:
         # Preprocess the input text
         cleaned_text = clean(user_input)
-        transformed_text = cv.transform([cleaned_text])
+        transformed_text = vectorizer.transform([cleaned_text])
         
         # Prediction
-        prediction = clf.predict(transformed_text)
+        prediction = model.predict(transformed_text)
         
-        # Check if the text contains hate speech or offensive language
         if prediction[0] in ["Hate Speech", "Offensive Language"]:
-            # Censor detected hate speech or offensive language
             censored_text = re.sub(r'\b\w+\b', '****', user_input)
             st.write("Warning: The content contains censored language.")
             st.write("Censored Text:", censored_text)
